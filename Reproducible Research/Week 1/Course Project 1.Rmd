@@ -1,0 +1,156 @@
+Course Project 1
+=================
+Brynjólfur Gauti Jónsson
+
+Let's start by loading in the libraries we'll use.
+```{r}
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(stringr)
+library(ggthemes)
+```
+
+# Reading and cleaning the data
+
+### Let's start by reading in the data and looking at it.
+It's stored as a csv so reading it in should be very simple. After that we'll use head and str to get a quick look at the data.
+```{r reading data}
+data <- read.csv('activity.csv')
+head(data)
+str(data)
+```
+
+
+### Cleaning the data
+
+We see that the date variable is stored as a factor. Let's change it into a date.
+
+```{r variable cleaning}
+data$date <- as.Date(data$date, format = '%Y-%m-%d')
+str(data)
+```
+
+### Plotting the total steps per day:
+
+We'll use ggplot for this as it's very customizable. First we have to create a vector containing the daily total steps.
+
+```{r}
+sum <- data %>%
+    group_by(date) %>%
+    summarise(sum = sum(steps)) %>%
+    arrange(desc(sum))
+head(sum)
+```
+
+```{r hist of steps}
+gghist <- ggplot(data = sum, aes(sum))
+gghist + geom_histogram(na.rm = TRUE, binwidth = 2000) + theme_tufte() + 
+    xlab('Steps') + ylab('Days') + ggtitle('Total Step Counts')
+```
+
+### Calculating the mean and median of steps per day:
+```{r mean and median}
+meansteps <- mean(sum$sum, na.rm=TRUE)
+mediansteps <- median(sum$sum, na.rm=TRUE)
+```
+
+The mean number of steps is: `r format(meansteps, scientific=FALSE)`, The median is: `r mediansteps`.
+
+
+### Plotting a time series of the steps over intervals
+
+```{r steps intervals plot}
+# Making the ticks for the x-axis
+intervaltime <- str_pad(unique(data$interval), 4, pad='0')
+intervaltime <- format(strptime(intervaltime, format='%H%M'), format='%H:%M')
+
+g2 <- ggplot(data, aes(x=interval, y=steps))
+g2 + stat_summary(fun.y=mean, geom='line', na.rm=TRUE) + 
+    xlab('Time of Day')+
+    ylab('Mean Number of Steps') + 
+    ggtitle('Mean Number of Steps For Different Times of Day') +
+    theme_tufte(base_size = 12) + 
+    scale_x_continuous(breaks=seq(1, 2355, length.out = 12), 
+                       labels=intervaltime[seq(1, 288, by=288/12)])
+```
+
+Now to find which 5-minute interval contains the largest average number of steps.
+
+```{r means per interval}
+means <- data %>%
+    group_by(interval) %>%
+    summarise(avgsteps = mean(steps, na.rm=TRUE)) %>%
+    arrange(desc(avgsteps))
+head(means)
+```
+
+The interval `r means[1,1]` contains the highest average of `r means[1,2]`
+
+## Imputing missing values
+
+To see how many NAs are in the data lets first see where the NAs are found:
+``r colSums(is.na(data))``
+```{r}
+colSums(is.na(data))
+```
+
+It seems that the only NAs are in the steps category so the number of NAs is just the number of NAs in the steps column: `r colSums(is.na(data))[1]` 
+
+### Function to impute
+Now let's find a way to impute the missing values. When we have an NA in the steps variable we'll make it into the mean of steps grouped by the 5 minute interval in which the measurement would have taken place.
+
+```{r imputing data}
+impute <- data %>% 
+    group_by(interval) %>%
+    mutate_at(., 'steps',funs(replace(., which(is.na(.)), mean(.,na.rm=TRUE))))
+
+head(impute, 10)
+```
+
+
+Now let's remake the histogram of total steps only this time with imputed values. First we have to create a new vector of total daily steps.
+
+```{r}
+sum2 <- impute %>%
+    group_by(date) %>%
+    summarise(sum = sum(steps)) %>%
+    arrange(desc(sum))
+head(sum)
+```
+
+
+```{r imputed histogram}
+gghist2 <- ggplot(data = sum2, aes(sum))
+gghist2 + geom_histogram(na.rm = TRUE, binwidth = 2000) + theme_tufte() + 
+    xlab('Steps') + ylab('Days') + ggtitle('Total Step Counts')
+
+meanimpute <- mean(sum2$sum, na.rm=TRUE)
+medianimpute <- median(sum2$sum, na.rm=TRUE)
+
+```
+
+The mean of imputed data is `r format(meanimpute, scientific=FALSE)` and the median is `r format(medianimpute, scientific=FALSE)`. We see that the median and mean have become the same. The distribution also beacme a little more normalized by imputing it, as one might expect since we were using means to impute.
+
+## Are there differences in activity between weekdays and weekends?
+
+Let's make a new variable for weekday vs weekend and plot the mean number of steps for each, minutewise.
+```{r weekday vs weekend, fig.width= 12, fig.height= 6}
+
+impute$weekday <- weekdays(impute$date)
+impute[impute$weekday %in% c('Monday', 'Tuesday', 'Wednesday', 'Thursday',
+                             'Friday'),4] <- 'Weekday'
+impute[impute$weekday %in% c('Saturday', 'Sunday'),4] <- 'Weekend'
+
+g2 <- ggplot(impute, aes(x=interval, y=steps))
+g2 + stat_summary(fun.y=mean, geom='line', na.rm=TRUE) + xlab('Time of Day') +
+    ylab('Mean Number of Steps') + 
+    ggtitle('Mean Number of Steps For Different Times of Day') +
+    theme_tufte(base_size = 13) +
+    scale_x_continuous(breaks=seq(1, 2355, length.out = 12), 
+                       labels=intervaltime[seq(1, 288, by=288/12)]) +
+    facet_grid(. ~ weekday)
+```
+
+
+
