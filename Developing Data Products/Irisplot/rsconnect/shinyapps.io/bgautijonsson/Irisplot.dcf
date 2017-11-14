@@ -1,0 +1,13 @@
+name: Irisplot
+title: Irisplot
+username:
+account: bgautijonsson
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 216785
+bundleId: 990242
+url: https://bgautijonsson.shinyapps.io/Irisplot/
+when: 1505948887.5438
+asMultiple: FALSE
+asStatic: FALSE
+ignoredFiles: Analysis.R

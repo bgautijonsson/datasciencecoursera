@@ -1,0 +1,38 @@
+---
+title: "Plotly Presentation"
+author: "Brynjólfur Gauti Jónsson"
+date: "22 September 2017"
+output: ioslides_presentation
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+library(plotly)
+library(ggthemes)
+```
+
+## R Markdown Presentations and Plotly
+
+In this presentation we will examine the plotly package inside R Markdown presentations. 
+
+Press right or left on your keyboard to switch between slides.
+
+## Using plotly.
+We can use ggplotly() to parse a ggplot object into a plotly object.
+```{r cars}
+names(mtcars)[4] <- 'Horsepower'
+g <- ggplot(mtcars) + geom_point(aes(x = wt, y=mpg, 
+                                     colour = Horsepower)) + 
+    xlab('Weight') + ylab('Miles Per Gallon') + theme_tufte()
+ggplotly(g)
+```
+
+## Another Plot
+
+```{r}
+g1 <- ggplot(iris) + geom_density(aes(x=Petal.Width, colour=Species)) +
+    xlab('Petal Width') + ylab('Density') + theme_tufte()
+ggplotly(g1)
+```
+
+

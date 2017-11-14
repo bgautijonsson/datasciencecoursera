@@ -1,0 +1,12 @@
+name: irisdata
+title: IrisData
+username:
+account: bgautijonsson
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 217184
+bundleId: 991435
+url: https://bgautijonsson.shinyapps.io/irisdata/
+when: 1506019631.22891
+asMultiple: FALSE
+asStatic: FALSE

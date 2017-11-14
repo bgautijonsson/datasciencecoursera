@@ -1,0 +1,32 @@
+---
+title: "A Study on the Spread of FastFood Restaurants in Reykjavík, Iceland"
+author: "Brynjólfur Gauti Jónsson"
+date: "20 September 2017"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r}
+library(leaflet)
+
+KFCicon <- makeIcon(iconUrl = 'https://upload.wikimedia.org/wikipedia/en/thumb/b/bf/KFC_logo.svg/1024px-KFC_logo.svg.png', iconWidth = 31*215/230, iconHeight = 31,
+                    iconAnchorX = 31*215/230/2, iconAnchorY = 16)
+
+MYicon <- makeIcon(iconUrl = 'http://www.themillergroup.com/wp-content/uploads/2015/01/JCLdMDveAn.png?4be9bf', iconWidth = 50*215/230, iconHeight = 50,
+                    iconAnchorX = 31*215/230/2, iconAnchorY = 16)
+
+my_map <- leaflet() %>%
+        addTiles() %>%
+        addMarkers(lat = 64.135361, lng = -21.952377,
+                   popup = 'My home', icon = MYicon) %>%
+        addMarkers(lat = 64.131583, lng = -21.867615,
+                   popup = 'Nearest KFC', icon = KFCicon)
+my_map
+```
+
+# Hvar er Skjaldborgin?
+
+## Takk, Óli.
