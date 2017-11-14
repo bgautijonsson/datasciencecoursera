@@ -1,0 +1,111 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+Regression Models: Course Project
+===========
+Bryjólfur Gauti Jónsson
+
+# Synopsis 
+The purpose of this analysis is to determine whether the nature of a car's transmission (manual vs. automatic) has a significant effect on the car's MPG (mile's per gallon). To do this we will utilize the **'mtcars'** dataset that comes with R.
+
+
+# Getting and Cleaning the Data
+We will start by reading the mtcars data that comes with r and having a first look at it.
+
+```{r}
+data("mtcars")
+str(mtcars)
+head(mtcars)
+```
+
+We immediately spot a few variables that are numeric but should be factors.
+
+```{r}
+mtcars$am <- as.factor(mtcars$am)
+levels(mtcars$am) <- c("Auto", "Manual")
+mtcars$cyl <- as.factor(mtcars$cyl)
+mtcars$vs <- as.factor(mtcars$vs)
+mtcars$gear <- as.factor(mtcars$gear)
+mtcars$carb <- as.factor(mtcars$carb)
+```
+
+\newpage
+
+# Exploratory Analysis
+Let's start out by looking at some of the relationships between variables. 
+
+```{r, results='hide', message=FALSE}
+require(dplyr); require(ggplot2); require(ggthemes);require(knitr)
+```
+
+### Transmission Type and Weight
+```{r transmissionvsweight, fig.height=6, fig.width=8}
+# Points plot of relationship between mpg ~ am + wt
+ggplot(mtcars) + geom_point(aes(x=wt, y=mpg, col=cyl, shape=am)) + theme_tufte() +
+    geom_smooth(aes(x=wt, y=mpg), method='lm') +xlab('Weight (in 1000lbs)') + 
+    ylab('Miles Per gallon') + labs(col='Cylinder Count',
+                                    shape = 'Transmission Type')
+```
+We see that manual transmission cars weigh less than cars with automatic transmissions and have higher MPG. We also see that most of the manual cars have 4 cylinders with only a few at 6 or 8 cylinders. This might introduce problems in our model later.
+
+\newpage
+
+# Data Analysis
+
+Let's start out by making a linear model containing all variables to get a quick look at which ones have the greates effect on mpg. We remove the intercepts from these models since we have so many 
+
+```{r}
+kable(anova(lm(mpg ~ . , mtcars)))
+```
+
+Lots of nonsignificant effects. Let's make a model including just the significant variables and transmission type.
+
+```{r}
+kable(anova(lm(mpg ~ wt + disp + cyl + am, mtcars)))
+```
+
+The models fail to find a significant effect of transmission type on MPG. This result seems to agree with our exploratory analysis. Weight and number of cylinders in a car, among others, explain all the variance in MPG that we would otherwise get from the transmission type.
+
+
+```{r}
+kable(anova(lm(mpg ~ wt + am, mtcars)))
+```
+
+Again we fail to find a significant effect from transmission type beyond the effect of weight.
+
+\newpage
+
+# Results
+
+In this analysis we aimed to discover a relationship between the transmission type of cars and their MPG. There is indeed a difference in MPG between manual and automatic cars: 
+```{r}
+model <- lm(mpg ~ am  -1, mtcars)
+kable(summary(model)$coef)
+```
+
+
+Manual cars on average had an MPG of: **`r summary(lm(mpg ~  am -1, mtcars))$coef[2]`**, while automatic cars had an MPG of:  **`r summary(lm(mpg ~  am -1, mtcars))$coef[1]`**.
+
+
+
+Unfortunately this effect of transmission type on MPG was not statistically significant once we corrected for other variables like weight and cylinder count. It seems that all the variance that would be explained by transmission type is instead explained solely by the weight and cylinder count of the car.
+
+If we were to perform this analysis again, it would be a good idea to have a larger sample size with a larger spectrum of manual and automatic cars whose weights would cross in order to better compare the two groups correcting for weight. As we saw in the exploratory analysis we also need more manual cars with 8 cylinders and more automatic cars with 4 cylinders to perform a sound inference.
+
+
+\newpage
+
+# Appendix
+
+### Residual Plot of the last fitted model.
+
+```{r}
+model <- lm(mpg ~ wt + disp + cyl + am, mtcars)
+par(mfrow=c(2,2))
+plot(model)
+```
+
+The error looks approximately normal with some skew by the outer bounds of the distribution. There is no hint of bias in the scale-location plot. There are a lot of high leverage points as the cars are not well distributed with almost all manual cars being way lighter than the automatic cars.
+
