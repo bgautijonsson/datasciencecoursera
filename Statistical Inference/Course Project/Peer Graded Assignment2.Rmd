@@ -1,0 +1,92 @@
+---
+output:
+  pdf_document: default
+  html_document: default
+---
+Statistical Inference Course Project Part 2
+========
+Author: Brynjólfur Gauti Jónsson
+
+# Synopsis
+
+The purpose of this assignment is to analyze the ToothGrowth dataset. The dataset reports the growth of odontoblasts (cells responsible for tooth growth) in guinea pigs as a response to different dosages of vitamin c, administered as orange juice or as ascorbic acid (a vitamin compound).
+
+# Data Summary
+First let us load the data set and take a quick look at it.
+```{r}
+library(datasets)
+data(ToothGrowth)
+str(ToothGrowth)
+summary(ToothGrowth)
+```
+
+We see that the *dose* variable is stored as a numeric, but we will change it into a factor variable. We will also make the names of the *supp* levels more descriptive.
+
+```{r}
+ToothGrowth$dose <- as.factor(ToothGrowth$dose)
+levels(ToothGrowth$supp) <- c('Orange Juice', 'Ascorbic Acid')
+table(ToothGrowth$supp, ToothGrowth$dose)
+```
+
+So the sample is split into six different groups of size ten. Our aim is much clearer now that we have gotten a quick look at the data.
+
+\newpage
+
+# Analysis
+Let's start the analysis by looking at a boxplot of the data.
+```{r}
+require(ggplot2)
+require(ggthemes)
+
+g <- ggplot(ToothGrowth, aes(y=len, x=dose)) + theme_tufte()
+g + geom_boxplot(aes(fill = supp)) + facet_grid(.~supp) + xlab('Dose (mg/day)') +
+    ylab('Cell Length') + labs(fill = 'Method') + 
+    scale_color_manual(labels = c('Orange Juice', 'Ascorbic Acid')) + 
+    ggtitle('Tooth Growth in Mice by Method and Magnitude')
+```
+
+We see a clear difference in dose magnitude across both methods. It also looks like orange juice has a more pronounced effect when the dosage is small but the difference evens out in the largest dose. 
+
+Now we will perform t-tests to back our claims.
+\newpage
+
+## Testing differences in Orange Juice vs. Ascorbic Acid
+
+We will print out three t-tests. One t-test comparing administration methods for each dosage.
+```{r}
+for (i in c(0.5, 1, 2)) {
+    print(paste('T Test of Difference Between Administration Methods for Doses of Size',
+          i))
+    print(t.test(len ~ supp, data = ToothGrowth[ToothGrowth$dose==i,]))
+}
+```
+
+As we thought, the administration method seems to matter when the dose is small but had almost no effect when the dose is large. For doses of size 0.5mg and 1mg we can reject the null-hypotheses that method of administration has no effect.
+\newpage
+
+## Does the Size of the Dose Have an Effect?
+
+
+```{r}
+
+for (i in c(1, 2, 3)) {
+    sizes <- c(0.5, 1, 2)
+    test <- t.test(len ~ dose, data = ToothGrowth[ToothGrowth$dose!=sizes[i],])
+    sizes <- sizes[-i]
+    print(paste('T Test for dosage sizes:', sizes[1], 'and', sizes[2]))
+    print(test)
+}
+```
+
+We get p-values indicating significant results across the board. None of the confidence intervals contain zero. We say with 99% probability that a dose of 2mg will yield more growth than doses of 0.5mg and 1mg
+\newpage
+
+# Results
+
+Given the assumptions that 
+
+* our sample is representative of the population from which it was drawn, 
+* there was no bias in the measurements and 
+* there are no hidden unmeasured variables affecting our data
+
+We have found out that there is a significant increase in odontoblast growth rates with higher doses up to 2mg and for lower doses, administration of orange juice had a more pronounced effect than ascorbic acid
