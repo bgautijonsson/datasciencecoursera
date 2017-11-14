@@ -1,0 +1,153 @@
+---
+title: "Capstone Diary"
+author: "Brynjólfur Gauti Jónsson"
+date: "28 September 2017"
+output: html_document
+---
+
+The packages we need
+```{r, message=FALSE}
+library(tm)
+library(ggplot2)
+library(ggthemes)
+library(cluster)
+library(wordcloud)
+```
+
+# Reading the Data
+```{r, cache=TRUE}
+# Directories
+topdir <- getwd()
+readdir <- paste(topdir, '/final/en_US', sep = '')
+setwd(readdir)
+# Reading the Data
+blogs <- readLines(con = 'en_US.blogs.txt', skipNul = TRUE)
+news <- readLines(con = 'en_US.news.txt', skipNul = TRUE)
+twitter <- readLines(con = 'en_US.twitter.txt', skipNul = TRUE)
+setwd(topdir)
+```
+## Sampling Data and Moving Data Into Corpus
+
+```{r, cache=TRUE}
+set.seed(102)
+fulldata <- c(blogs, news, twitter)
+data <- sample(fulldata, 100000)
+corpus <- VCorpus(VectorSource(data))
+inspect(corpus[1])
+writeLines(as.character(corpus[[2]]))
+```
+
+
+# Cleaning the Data
+
+We utilize *tm's* inbuilt functions to clean the corpus. First we remove punctuation.
+```{r}
+corpus <- tm_map(corpus, removePunctuation)
+writeLines(as.character(corpus[[2]]))
+```
+
+Remove numbers and move to lower case
+```{r}
+corpus <- tm_map(corpus, removeNumbers)
+corpus <- tm_map(corpus, tolower)
+writeLines(as.character(corpus[[2]]))
+```
+
+Remove stopwords
+```{r}
+corpus <- tm_map(corpus, removeWords, stopwords('english'))
+
+writeLines(as.character(corpus[[2]]))
+```
+
+Strip whitespace
+```{r}
+corpus <- tm_map(corpus, stripWhitespace)
+writeLines(as.character(corpus[[2]]))
+
+corpus <- tm_map(corpus, PlainTextDocument)
+```
+
+
+document term matrix
+```{r}
+dtm <- DocumentTermMatrix(corpus)
+tdm <- TermDocumentMatrix(corpus)
+
+dtm
+tdm
+```
+
+
+```{r}
+freq <- colSums(as.matrix(dtm))
+ord <- order(freq)
+head(freq, 20)
+
+
+m <- as.matrix(dtm)
+
+dim(m)
+
+# write.csv(m, file='DocumentTermMatrix.csv')
+```
+
+
+```{r}
+dtms <- removeSparseTerms(dtm, 0.9998)
+dtms
+
+freqs <- colSums(as.matrix(dtms))
+head(freqs, 20)
+
+```
+
+Let's sort freq decreasing order
+```{r}
+freqs <- sort(colSums(as.matrix(dtms)), decreasing = TRUE)
+tail(freqs, 20)
+```
+
+
+Make dataframe of word-frequencies
+```{r}
+wf <- data.frame(word=names(freqs), freq= freqs, row.names = NULL)
+head(wf)
+```
+
+## Plotting the data
+
+```{r freqplot}
+g1 <- ggplot(data = wf[1:20,], aes(x = reorder(word, -freq), y=freq)) + 
+    geom_bar(stat = 'identity') + xlab('Word') + ylab('Frequency') + 
+    ggtitle('Frequencies of Most Used Words') + theme_tufte()
+g1
+```
+
+
+Correlation
+```{r}
+findAssocs(dtm, 'statistics', corlimit = 0.3)
+```
+
+
+```{r}
+library(wordcloud)
+
+wordcloud(names(freqs), freqs, max.words = 30)
+
+```
+
+```{r}
+
+library(cluster)
+
+
+```
+
+
+
+
+
+
+

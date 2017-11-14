@@ -1,0 +1,302 @@
+---
+title: "Milestone_Report"
+author: "Brynjólfur Gauti Jónsson"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, error = FALSE, cache = TRUE,
+                      warning = FALSE)
+```
+
+```{r libraries, cache = FALSE}
+library(plyr); library(dplyr); library(tidyr); library(tibble)
+library(tidytext); library(tm); library(ggplot2); library(wordcloud)
+library(cluster); library(ggthemes); library(gridExtra); library(readr)
+library(stringr); library(igraph); library(ggraph); library(reshape2)
+library(knitr); library(scales)
+```
+
+# Synopsis
+
+This milestone report is part of the Capstone Course of the Data Science Specialization on Coursera. The goal of this project is to create a predictive text model using data from SwiftKey. The data was obtained via datascraping the internet for blogposts, news articles and tweets. 
+
+# Data Reading and Cleaning
+
+The data comes from three separate files. One for each of *blogs*, *news* and *twitter* data sources. I start the report by first analysing each dataset on it's own. Later, I combine them and analyse them all together. 
+
+```{r readData, cache = TRUE}
+# Directories
+topdir <- getwd()
+readdir <- paste(topdir, '/final/en_US', sep = '')
+setwd(readdir)
+# Reading the Data
+blogs <- readLines(con = 'en_US.blogs.txt', skipNul = TRUE)
+news <- readLines(con = 'en_US.news.txt', skipNul = TRUE)
+twitter <- readLines(con = 'en_US.twitter.txt', skipNul = TRUE)
+setwd(topdir)
+
+# Create tables for each subcategory
+data("stop_words")
+## Blogs
+blogdf <- data_frame(text = blogs)
+blogwords <- blogdf %>%
+    unnest_tokens(word, text)
+blogcount <- blogwords %>%
+    anti_join(stop_words) %>%
+    filter(!word %in% 0:100) %>%
+    count(word, sort = TRUE)
+## News
+newsdf <- data_frame(text = news)
+newswords <- newsdf %>%
+    unnest_tokens(word, text)
+newscount <- newswords %>%
+    anti_join(stop_words) %>%
+    filter(!word %in% 0:100) %>%
+    count(word, sort = TRUE)
+## Twitter
+twitterdf <- data_frame(text = twitter)
+twitterwords <- twitterdf %>%
+    unnest_tokens(word, text)
+twittercount <- twitterwords %>%
+    anti_join(stop_words) %>%
+    filter(!word %in% 0:100) %>%
+    count(word, sort = TRUE)
+
+# Create vector with all text and partition into working size for later.
+fulldata <- c(blogs, news, twitter)
+dfbig  <- data_frame(text = fulldata)
+rm(fulldata); rm(blogs); rm(news); rm(twitter)
+
+df <- sample_frac(dfbig, 0.2)
+rm(dfbig)
+```
+
+
+# Exploratory Analysis
+
+I will start by exploring which words are the most common in each of the datasets. Before doing so I will remove common words known as *stop words*. This is words like *the*, *is*, *and*, etc.
+
+## Wordcount Graphs
+```{r subcatCountplots, cache = TRUE, fig.height=8, fig.width=8}
+g_bl <- ggplot(blogcount[1:15,], aes(x = reorder(word, n), y = n)) + geom_col() + theme_tufte() + coord_flip() + xlab('') + ylab('') + ggtitle('Blogwords')
+g_news <- ggplot(newscount[1:15,], aes(x = reorder(word, n), y = n)) + geom_col() + theme_tufte() + coord_flip() + xlab('') + ylab('') + ggtitle('Newswords')
+g_twitter <- ggplot(twittercount[1:15,], aes(x = reorder(word, n), y = n)) + geom_col() + theme_tufte() + coord_flip() + xlab('Word') + ylab('Frequency') + ggtitle('Twitterwords')
+
+grid.arrange(g_bl, g_news, g_twitter, ncol = 1)
+
+```
+
+We see a lot of similarities between the different sources but also some differences. The *twitter* data contains more abbreviations like *lol*, *news* contains words like *police* and other official-sounding words. The *blogs* data seems to have the most ordinary corpus.
+
+## Word Clouds
+
+We get additional visualizations of the datasets using wordclouds. Wordclouds can give us a better conceptual understanding of the datasets. I have added a sentiment analysis onto the plots so we can also see which positive and negative words are contained in each dataset. 
+
+### Blogs
+```{r blogwordcloud}
+blogcount %>%
+    inner_join(get_sentiments('bing')) %>%
+    acast(word ~ sentiment, value.var = 'n', fill = 0) %>%
+    comparison.cloud(colors = c("#F8766D", "#00BFC4"),
+                   max.words = 150)
+    
+
+```
+
+### News 
+
+```{r newswordcloud}
+newscount %>%
+    inner_join(get_sentiments('bing')) %>%
+    acast(word ~ sentiment, value.var = 'n', fill = 0) %>%
+    comparison.cloud(colors = c("#67a9cf", "#b2182b"),
+                   max.words = 100)
+```
+
+### Twitter
+
+```{r twitterwordcloud}
+twittercount %>%
+    inner_join(get_sentiments('bing')) %>%
+    acast(word ~ sentiment, value.var = 'n', fill = 0) %>%
+    comparison.cloud(colors = c("#af8dc3", "#ef8a62"),
+                   max.words = 150)
+```
+
+## Correlation Plots
+
+```{r corPlot, cache = TRUE}
+frequencies <- bind_rows(mutate(blogwords, source = 'Blogs'),
+                       mutate(newswords, source = 'News'), 
+                       mutate(twitterwords, source = 'Twitter')) %>%
+    anti_join(stop_words) %>%
+    mutate(word = str_extract(word, "[a-z']+")) %>%
+    count(source, word) %>%
+    group_by(source) %>%
+    mutate(proportion = n / sum(n)) %>%
+    select(-n) %>%
+    spread(source, proportion) %>%
+    gather(source, proportion, Blogs:News) %>%
+    arrange(desc(Twitter))
+
+ggplot(frequencies[1:60000,], aes(x = proportion, y = Twitter, 
+                                            color = abs(Twitter - proportion))) +
+    theme_tufte() +
+    geom_abline(color = "gray40", lty = 2) +
+    geom_jitter(alpha = 0.1, size = 2.5, width = 0.3, height = 0.3) +
+    geom_text(aes(label = word), check_overlap = TRUE, vjust = 1.5) +
+    scale_x_log10(labels = percent_format()) +
+    scale_y_log10(labels = percent_format()) +
+    scale_color_gradient(limits = c(0, 0.001), high = "#ef8a62", low = "#67a9cf") +
+    facet_wrap(~source, ncol = 2) +
+    theme(legend.position="none") +
+    labs(y = "Twitter", x = NULL)
+
+
+```
+
+
+
+# Blending the Datasets
+
+```{r blendedCountsWords, cache = TRUE}
+rm(blogcount); rm(twittercount); rm(newscount); rm(blogdf); rm(twitterdf)
+rm(newsdf); rm(newswords); rm(twitterwords); rm(blogwords)
+# Working with Tidy Text
+words <- df %>%
+    unnest_tokens(word, text) %>%
+    anti_join(stop_words) %>%
+    filter(!word %in% 0:1000) %>%
+    count(word, sort = TRUE)
+```
+
+
+```{r blendedCountsDigrams, cache = TRUE}
+# Digrams  
+digrams <- df %>%
+    unnest_tokens(digram, text, token = 'ngrams', n = 2) %>%
+    separate(digram, c('word1', 'word2'), sep = ' ') %>%
+    filter(!word1 %in% 0:1000) %>%
+    filter(!word2 %in% 0:1000) %>%
+    count(word1, word2, sort = TRUE)
+
+```
+
+```{r blendedCountsTrigrams, cache = TRUE}
+
+## Trigram
+trigrams <- df %>%
+    unnest_tokens(trigram, text, token = 'ngrams', n = 3) %>% 
+    separate(trigram, c('word1', 'word2', 'word3'), sep = ' ') %>%
+    filter(!word1 %in% 0:1000) %>%
+    filter(!word2 %in% 0:1000) %>%
+    filter(!word3 %in% 0:1000) %>%
+    count(word1, word2, word3, sort=TRUE)
+
+```
+
+
+```{r blendedCountsQuadgram, cache = TRUE}
+
+## Quadgram
+quadgrams <- df %>%
+    unnest_tokens(quadgrams, text, token = 'ngrams', n = 4) %>% 
+    separate(quadgrams, c('word1', 'word2', 'word3', 'word4'), sep = ' ') %>%
+    count(word1, word2, word3, word4, sort = TRUE)
+
+```
+
+## Exploratory plots
+
+### Word Counts
+```{r blendedCountplots, cache = TRUE, fig.height=10, fig.width=10}
+g_words <- ggplot(words[1:20,], aes(x=reorder(word, n), y=n)) + geom_col() + theme_tufte() +
+    coord_flip() + ylab('Word') + xlab('Frequency') + ggtitle('Words')
+
+di_words <- ggplot(digrams[1:20,], aes(x=reorder(paste(word1, word2), n), y=n)) + 
+    geom_col() + theme_tufte() + coord_flip() + xlab('Word Pair') + ylab('Frequency') +
+    ggtitle('Digrams')
+
+tri_words <- ggplot(trigrams[1:20,], aes(x=reorder(paste(word1, word2, word3), n), y=n)) +
+    geom_col() + theme_tufte() + coord_flip() + xlab('Word Trio') + ylab('Frequency') + 
+    ggtitle('Trigrams')
+
+
+quad_words <- ggplot(quadgrams[1:20,], aes(x=reorder(paste(word1, word2, word3, word4), n), y=n)) + geom_col() + theme_tufte() + coord_flip() + ylab('Word') + xlab('Frequency') +
+    ggtitle('Quadgrams')
+
+grid.arrange(g_words, di_words, tri_words, quad_words, nrow = 2)
+```
+
+### Graphs
+
+```{r makeblendedGraphs, cache = TRUE}
+a  <- arrow(type = 'closed', length = unit(.15, 'inches'))
+
+digram_graph <- digrams %>%
+    filter(n > 6500) %>%
+    graph_from_data_frame()
+
+d <- ggraph(digram_graph, 'fr') +
+    geom_edge_link(aes(edge_alpha = n), edge_colour = 'grey30', show.legend = FALSE,
+                   arrow = a, end_cap = circle(.12, 'inches')) + 
+    geom_node_point(color = 'lightpink', size = 5) +
+    geom_node_text(aes(label = name),repel = TRUE) +
+    theme_void() + ggtitle('Connection Graph of Digrams')
+
+
+# Make Digram from Trigram Counts
+tgc1 <- trigrams[,c(1,2,4)] %>%
+    filter(n>100)
+tgc2 <- trigrams[,c(2,3,4)] %>%
+    filter(n>100)
+colnames(tgc2) <- c('word1', 'word2', 'n')
+tgc <- rbind(tgc1, tgc2) %>%
+    arrange(desc(n))
+trigram_graph <- tgc %>%
+    filter(n > 1200) %>%
+    graph_from_data_frame()
+t <- ggraph(trigram_graph, 'fr') +
+    geom_edge_link(aes(edge_alpha = n), edge_colour = 'grey30', show.legend = FALSE,
+                   arrow = a, end_cap = circle(.12, 'inches')) + 
+    geom_node_point(color = 'lightblue', size = 5) +
+    geom_node_text(aes(label = name),repel = TRUE) +
+    theme_void() + ggtitle('Connection Graph of Trigrams')
+# Make Digram from Quadgram Counts
+qgcfilt <- quadgrams %>%
+    filter(n > 100)
+qgc1 <- qgcfilt[,c(1,2,5)]
+qgc2 <- qgcfilt[,c(2,3,5)]
+colnames(qgc2) <- c('word1', 'word2', 'n')
+qgc3 <- qgcfilt[,c(3,4,5)]
+colnames(qgc3) <- c('word1', 'word2', 'n')
+qgc <- rbind(qgc1, qgc2, qgc3) %>%
+    ddply(.variables = c('word1', 'word2'), numcolwise(sum)) %>%
+    arrange(desc(n)) %>%
+    dplyr::as_data_frame()
+qgcgraph <- qgc %>%
+    filter(n > 700) %>%
+    graph_from_data_frame()
+q <- ggraph(qgcgraph, 'fr') +
+    geom_edge_link(aes(edge_alpha = n), edge_colour = 'grey30', show.legend = FALSE,
+                   arrow = a, end_cap = circle(.12, 'inches')) + 
+    geom_node_point(color = 'goldenrod', size = 5) +
+    geom_node_text(aes(label = name),repel = TRUE) +
+    theme_void() + ggtitle('Connection Graph of Quadgrams')
+
+
+
+```
+
+
+```{r plotBlendedGraphs, cache = FALSE}
+
+d
+t
+q
+```
+
+
+
